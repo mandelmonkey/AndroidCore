@@ -14,22 +14,21 @@ public class Utility {
 
     public static Map<String, Object> jsonToMap(Object json) throws JSONException {
 
-        if(json instanceof JSONObject)
-            return _jsonToMap_((JSONObject)json) ;
+        if (json instanceof JSONObject)
+            return _jsonToMap_((JSONObject) json);
 
-        else if (json instanceof String)
-        {
-            JSONObject jsonObject = new JSONObject((String)json) ;
-            return _jsonToMap_(jsonObject) ;
+        else if (json instanceof String) {
+            JSONObject jsonObject = new JSONObject((String) json);
+            return _jsonToMap_(jsonObject);
         }
-        return null ;
+        return null;
     }
 
 
     private static Map<String, Object> _jsonToMap_(JSONObject json) throws JSONException {
         Map<String, Object> retMap = new HashMap<String, Object>();
 
-        if(json != JSONObject.NULL) {
+        if (json != JSONObject.NULL) {
             retMap = toMap(json);
         }
         return retMap;
@@ -40,15 +39,13 @@ public class Utility {
         Map<String, Object> map = new HashMap<String, Object>();
 
         Iterator<String> keysItr = object.keys();
-        while(keysItr.hasNext()) {
+        while (keysItr.hasNext()) {
             String key = keysItr.next();
             Object value = object.get(key);
 
-            if(value instanceof JSONArray) {
+            if (value instanceof JSONArray) {
                 value = toList((JSONArray) value);
-            }
-
-            else if(value instanceof JSONObject) {
+            } else if (value instanceof JSONObject) {
                 value = toMap((JSONObject) value);
             }
             map.put(key, value);
@@ -59,13 +56,11 @@ public class Utility {
 
     public static List<Object> toList(JSONArray array) throws JSONException {
         List<Object> list = new ArrayList<Object>();
-        for(int i = 0; i < array.length(); i++) {
+        for (int i = 0; i < array.length(); i++) {
             Object value = array.get(i);
-            if(value instanceof JSONArray) {
+            if (value instanceof JSONArray) {
                 value = toList((JSONArray) value);
-            }
-
-            else if(value instanceof JSONObject) {
+            } else if (value instanceof JSONObject) {
                 value = toMap((JSONObject) value);
             }
             list.add(value);

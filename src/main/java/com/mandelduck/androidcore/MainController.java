@@ -13,7 +13,9 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Debug;
 import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.support.v4.app.ActivityCompat;
@@ -27,12 +29,14 @@ import android.app.ActivityManager.RunningServiceInfo;
 import org.apache.commons.compress.utils.IOUtils;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +49,7 @@ public class MainController {
     static Context thisContext;
     static String thisConfig;
     static Activity thisActivity;
+    static Handler handler;
     static CallbackInterface thisCallback;
     public static String mBlockHex;
     private final static int NOTIFICATION_ID = 922430164;
@@ -60,7 +65,7 @@ public class MainController {
     private static void deleteRF(final File f) {
 
         Log.v(TAG, "Deleting " + f.getAbsolutePath() + "/" + f.getName());
-        if (f.isDirectory()) for (File child: f.listFiles()) deleteRF(child);
+        if (f.isDirectory()) for (File child : f.listFiles()) deleteRF(child);
 
         //noinspection ResultOfMethodCallIgnored
         f.delete();
@@ -119,6 +124,7 @@ public class MainController {
             mTimer.purge();
         }
     }
+
     public static String readConf(Context ctx) {
 
         try {
@@ -126,7 +132,7 @@ public class MainController {
             final InputStream f = new FileInputStream(Utils.getBitcoinConf(ctx));
             return new String(IOUtils.toByteArray(f));
 
-        } catch(final IOException e) {
+        } catch (final IOException e) {
             Log.i(TAG, e.getMessage());
         }
         return "";
@@ -134,10 +140,11 @@ public class MainController {
 
     public static void saveConf(String conf, Activity act, Context ctx) {
 
-        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED && !ActivityCompat.shouldShowRequestPermissionRationale(act, Manifest.permission.WRITE_EXTERNAL_STORAGE)) ActivityCompat.requestPermissions(act, new String[] {
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                },
-                0);
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED && !ActivityCompat.shouldShowRequestPermissionRationale(act, Manifest.permission.WRITE_EXTERNAL_STORAGE))
+            ActivityCompat.requestPermissions(act, new String[]{
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    },
+                    0);
 
         // save file
         OutputStream f = null;
@@ -145,7 +152,7 @@ public class MainController {
             f = new FileOutputStream(Utils.getBitcoinConf(ctx));
             IOUtils.copy(new ByteArrayInputStream(conf.getBytes(StandardCharsets.UTF_8)), f);
 
-        } catch(final IOException e) {
+        } catch (final IOException e) {
             Log.i(TAG, e.getMessage());
         } finally {
             IOUtils.closeQuietly(f);
@@ -233,9 +240,11 @@ public class MainController {
         i.putExtra("CONSOLE_REQUEST", "generate 101");
         thisContext.startService(i);
     }
+
     public static String getDataDir() {
         return Utils.getDir(thisContext).getAbsolutePath();
     }
+
     public static void configureCore(final Context c) throws IOException {
 
         final File coreConf = new File(Utils.getBitcoinConf(c));
@@ -246,40 +255,44 @@ public class MainController {
 
         FileOutputStream outputStream;
 
+
         try {
 
             outputStream = new FileOutputStream(coreConf);
             outputStream.write(thisConfig.getBytes());
 
-            for (final File f: c.getExternalFilesDirs(null))
+            for (final File f : c.getExternalFilesDirs(null))
                 outputStream.write(String.format("# for external storage try: %s\n", f.getCanonicalPath()).getBytes());
 
             outputStream.write(String.format("datadir=%s\n", String.format("%s/bitcoinDirec", Utils.getDir(c).getAbsolutePath())).getBytes());
 
             IOUtils.closeQuietly(outputStream);
-        } catch(final IOException e) {
+        } catch (final IOException e) {
             Log.e(TAG, "make dir error");
             e.printStackTrace();
             throw e;
         }
 
     }
+
     private static void refresh() {
         final Intent i = new Intent(thisContext, RPCIntentService.class);
         i.putExtra("REQUEST", "localonion");
         Log.i(TAG, "requesting local oninon");
         thisContext.startService(i);
     }
+
     public static void sendMessage(String message) {
         thisCallback.eventFired(message);
     }
+
     public static boolean checkIfServiceIsRunning(String serviceClassName) {
 
         final ActivityManager activityManager = (ActivityManager) thisContext.getSystemService(Context.ACTIVITY_SERVICE);
 
-        final List < RunningServiceInfo > services = activityManager.getRunningServices(Integer.MAX_VALUE);
+        final List<RunningServiceInfo> services = activityManager.getRunningServices(Integer.MAX_VALUE);
 
-        for (RunningServiceInfo runningServiceInfo: services) {
+        for (RunningServiceInfo runningServiceInfo : services) {
             Log.i(TAG, "services " + runningServiceInfo.service.getClassName());
             if (runningServiceInfo.service.getClassName().equals(serviceClassName)) {
 
@@ -296,73 +309,132 @@ public class MainController {
         mProcessTor = null;
 
     }
+
+    public static void LogFilesIn(String path) {
+        Log.i(TAG, "logging files in " + path);
+        File directory = new File(path);
+
+        directory.mkdirs();
+
+        File[] fList = directory.listFiles();
+
+        //get all the files from a directory
+        for (File file : fList) {
+            if (file.isFile()) {
+                Log.i("FILE", file.getName());
+            } else if (file.isDirectory()) {
+                Log.i("Direc", file.getName());
+            } else {
+                Log.i("else", file.getName());
+            }
+        }
+    }
+
     public static void startTorHiddenService(Context context) {
 
         try {
             Log.i(TAG, "Try Starting Tor");
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
-            final String path = context.getNoBackupFilesDir().getCanonicalPath();
 
-            final ProcessBuilder torpb = new ProcessBuilder(
-                    String.format("%s/%s", path, "tor"), "DataDirectory", path + "/tordata", "SOCKSPort", "9050", "ControlPort", "9051", "CookieAuthentication", "1", "HiddenServiceDir", path + "/tordata", "HiddenServiceVersion", "3", "HiddenServicePort", "8080 127.0.0.1:8080");
-
-            torpb.directory(new File(path));
-            mProcessTor = torpb.start();
-            final ProcessLogger.OnError er = new ProcessLogger.OnError() {@Override
-            public void onError(final String[] error) {
-                boolean ignoreError = false;
-                for (String
-                        var: error) {
-                    if (var != null) {
-                        if (var.indexOf("Could not bind to 127.0.0.1:9051: Address already in use. Is Tor already running?") != -1) {
-                            ignoreError = true;
-                        } else {
-                            Log.e(TAG, "Tor error " +
-                                    var);
-                        }
-                    } else {
-                        ignoreError = true;
-                        Log.e(TAG, "error is null ");
-                    }
-
-                }
-
-                if (ignoreError == false) {
-                    Log.e(TAG, "Tor errors " + error.length);
-                    try {
-                        JSONObject json = new JSONObject();
-                        json.put("error", true);
-                        json.put("response", "hidden service error, make sure orbot is closed");
-
-                        thisCallback.eventFired(json.toString());
-                    } catch(Exception e2) {
-                        thisCallback.eventFired("");
-                    }
-
-                    mProcessTor = null;
-                }
-            }
-            };
-
-            final ProcessLogger torErrorGobbler = new ProcessLogger(mProcessTor.getErrorStream(), er);
-            final ProcessLogger torOutputGobbler = new ProcessLogger(mProcessTor.getInputStream(), er);
-            Log.i(TAG, "Starting Tor");
-            torErrorGobbler.start();
-
-            torOutputGobbler.start();
 
             try {
-                JSONObject json = new JSONObject();
-                json.put("error", false);
-                json.put("response", "hidden service started");
 
-                thisCallback.eventFired(json.toString());
-            } catch(Exception e2) {
-                e2.printStackTrace();
-                thisCallback.eventFired("");
+                String daemonName = "libtor.so";
+
+
+                final String path = context.getNoBackupFilesDir().getAbsolutePath();
+                String nativeP = thisContext.getPackageManager().getApplicationInfo("com.nayutabox", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir;
+                LogFilesIn(nativeP);
+
+                String tpath = nativeP + "/" + daemonName;
+
+
+                File f = new File(tpath);
+                if (!f.exists()) {
+                    tpath = nativeP + "/tor";
+                }
+
+                Log.i(TAG, tpath);
+                ProcessBuilder pb = new ProcessBuilder(tpath, "DataDirectory", path + "/tordata", "SOCKSPort", "9050", "ControlPort", "9051", "CookieAuthentication", "1", "HiddenServiceDir", path + "/tordata", "HiddenServiceVersion", "3", "HiddenServicePort", "8080 127.0.0.1:8080");
+                mProcessTor = pb.start();
+
+                Log.i("start tor", "start tor");
+
+                final ProcessLogger.OnError er = new ProcessLogger.OnError() {
+                    @Override
+                    public void onError(final String[] error) {
+                        boolean ignoreError = false;
+                        for (String
+                                var : error) {
+                            if (var != null) {
+                                if (var.indexOf("Could not bind to 127.0.0.1:9051: Address already in use. Is Tor already running?") != -1) {
+                                    ignoreError = true;
+                                } else {
+                                    Log.e(TAG, "Tor error " +
+                                            var);
+                                }
+                            } else {
+                                ignoreError = true;
+                                Log.e(TAG, "error is null ");
+                            }
+
+                        }
+
+                        if (ignoreError == false) {
+                            Log.e(TAG, "Tor errors " + error.length);
+                            try {
+                                JSONObject json = new JSONObject();
+                                json.put("error", true);
+                                json.put("response", "hidden service error, make sure orbot is closed");
+
+                                thisCallback.eventFired(json.toString());
+                            } catch (Exception e2) {
+                                thisCallback.eventFired("");
+                            }
+
+                            mProcessTor = null;
+                        }
+                    }
+                };
+
+                final ProcessLogger torErrorGobbler = new ProcessLogger(mProcessTor.getErrorStream(), er);
+                final ProcessLogger torOutputGobbler = new ProcessLogger(mProcessTor.getInputStream(), er);
+                Log.i(TAG, "Starting Tor");
+                torErrorGobbler.start();
+
+                torOutputGobbler.start();
+
+
+                try {
+                    JSONObject json = new JSONObject();
+                    json.put("error", false);
+                    json.put("response", "hidden service started");
+
+                    thisCallback.eventFired(json.toString());
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+                    thisCallback.eventFired("");
+                }
+
+
+            } catch (Exception e) {
+                Log.e("name error", "werr");
+                Log.i(TAG, e.getLocalizedMessage());
+
+                try {
+                    JSONObject json = new JSONObject();
+                    json.put("error", true);
+                    json.put("response", "hidden service error");
+
+                    thisCallback.eventFired(json.toString());
+                } catch (Exception e2) {
+                    thisCallback.eventFired("");
+                }
+                e.printStackTrace();
             }
 
-        } catch(final IOException e) {
+
+        } catch (Exception e) {
             e.printStackTrace();
             Log.i(TAG, "Tor error Native exception!");
             Log.i(TAG, e.getMessage());
@@ -375,7 +447,7 @@ public class MainController {
                 json.put("response", "hidden service error, make sure orbot is closed");
 
                 thisCallback.eventFired(json.toString());
-            } catch(Exception e2) {
+            } catch (Exception e2) {
                 thisCallback.eventFired("");
             }
 
@@ -384,11 +456,13 @@ public class MainController {
         }
 
     }
+
     public static void getProgress() {
         final Intent i = new Intent(thisContext, RPCIntentService.class);
         i.putExtra("REQUEST", "progress");
         thisContext.startService(i);
     }
+
     public static void startCore(boolean reindex) {
 
         Intent serviceIntent = new Intent(thisContext, CoreService.class);
@@ -410,11 +484,12 @@ public class MainController {
             json.put("response", "starting");
 
             thisCallback.eventFired(json.toString());
-        } catch(Exception e2) {
+        } catch (Exception e2) {
             thisCallback.eventFired("");
         }
 
     }
+
     public static void setUp(final Context context, final String config, final Activity activity, final CallbackInterface callback) {
         thisContext = context;
         thisActivity = activity;
@@ -428,8 +503,7 @@ public class MainController {
         onResume();
         try {
             configureCore(thisContext);
-        }
-        catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -460,11 +534,7 @@ public class MainController {
             Log.i(TAG, "no context");
             return;
         }
-        if (Utils.isDaemonInstalled(thisContext) == false) {
-            Log.i(TAG, "deamon not installed");
-            cancelJob();
-            return;
-        }
+
         ComponentName componentName = new ComponentName(thisContext, SyncJobService.class);
         JobInfo info = null;
 
@@ -505,10 +575,10 @@ public class MainController {
     }
 
     public static void registerBackgroundSync(boolean limited) {
-        if (checkIfDownloaded()) {
-            Log.i(TAG, "scheduling job");
-            scheduleJob(limited);
-        }
+
+        Log.i(TAG, "scheduling job");
+        scheduleJob(limited);
+
     }
 
     public static long getRAM() {
@@ -522,6 +592,7 @@ public class MainController {
     public static boolean checkIfDownloaded() {
         return Utils.isDaemonInstalled(thisContext);
     }
+
     public static void startDownload() {
 
         HAS_BEEN_STARTED = true;
@@ -532,7 +603,7 @@ public class MainController {
 
         Log.i(TAG, "getting binary for arc " + arch);
 
-        Utils.copyBitcoind(thisContext, Utils.getArch() + "_bitcoin.tar.xz");
+        //Utils.copyBitcoind(thisContext, Utils.getArch() + "_bitcoin.tar.xz");
 
         Log.i(TAG, "copied and extracted " + arch);
 
@@ -543,7 +614,7 @@ public class MainController {
             json.put("response", "downloaded");
 
             thisCallback.eventFired(json.toString());
-        } catch(Exception e2) {
+        } catch (Exception e2) {
             thisCallback.eventFired("");
         }
 
@@ -551,61 +622,81 @@ public class MainController {
 
             configureCore(thisContext);
 
-        }
-        catch(Exception e) {
+        } catch (Exception e) {
             Log.e(TAG, e.toString());
         }
 
         return;
 
     }
+
     public static void onionMessage(String message) {
         Log.i(TAG, "oniony " + message);
+
+    }
+
+    public static Runnable checkWifi = new Runnable() {
+
+
+        @Override
+        public void run() {
+
+            Log.i(TAG, "checking WIFI");
+
+            ConnectivityManager connManager = (ConnectivityManager) thisContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo activeNetwork = connManager.getActiveNetworkInfo();
+            if (activeNetwork != null) {
+                Log.i(TAG, "connected");
+                // connected to the internet
+                String resType = "wifi off";
+                if (activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
+
+                    resType = "wifi on";
+
+                } else {
+
+                    stopService();
+                    stopCore();
+                }
+
+                try {
+                    JSONObject json = new JSONObject();
+                    json.put("error", false);
+                    json.put("response", resType);
+                    json.put("debug", "network: " + activeNetwork.getType() + " wifi is:" + ConnectivityManager.TYPE_WIFI);
+
+                    MainController.sendMessage(json.toString());
+                } catch (Exception e2) {
+                    Log.e(TAG, e2.toString());
+                }
+
+
+            }
+
+            handler.postDelayed(checkWifi, 2000);
+
+        }
+    };
+
+    public static void StartWifiCheck() {
+
+        Log.i(TAG, "start check wifi");
+        if (handler == null) {
+            handler = new Handler();
+        }
+        Log.i(TAG, "cont check wifi");
+
+        handler.removeCallbacks(checkWifi);
+
+        checkWifi.run();
 
     }
 
     public static void postStart() {
         final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(thisContext);
         final String useDistribution = prefs.getString("usedistribution", "core");
-
-        final Handler handler = new Handler();
-        final int delay = 2000; //milliseconds
-        handler.postDelayed(new Runnable() {
-                                public void run() {
-                                    Log.i(TAG, "checking WIFI");
-
-                                    ConnectivityManager connManager = (ConnectivityManager) thisContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-                                    NetworkInfo activeNetwork = connManager.getActiveNetworkInfo();
-                                    if (activeNetwork != null) {
-                                        Log.i(TAG, "connected");
-                                        // connected to the internet
-                                        String resType = "wifi off";
-                                        if (activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
-
-                                            resType = "wifi on";
-
-                                        } else {
-
-                                            stopService();
-                                            stopCore();
-                                        }
-
-                                        try {
-                                            JSONObject json = new JSONObject();
-                                            json.put("error", false);
-                                            json.put("response", resType);
-                                            json.put("debug", "network: " + activeNetwork.getType() + " wifi is:" + ConnectivityManager.TYPE_WIFI);
-
-                                            MainController.sendMessage(json.toString());
-                                        } catch(Exception e2) {
-                                            Log.e(TAG, e2.toString());
-                                        }
-                                    }
-
-                                    handler.postDelayed(this, delay);
-                                }
-                            },
-                delay);
+        Log.i(TAG, "post start");
+        StartWifiCheck();
 
         try {
             JSONObject json = new JSONObject();
@@ -614,7 +705,7 @@ public class MainController {
             json.put("distribution", useDistribution);
 
             MainController.sendMessage(json.toString());
-        } catch(Exception e2) {
+        } catch (Exception e2) {
             Log.e(TAG, e2.toString());
         }
     }
@@ -659,9 +750,9 @@ public class MainController {
                 int readByte = fileHandler.readByte();
 
                 if (readByte == 0xA) {
-                    if (filePointer < fileLength)++line;
+                    if (filePointer < fileLength) ++line;
                 } else if (readByte == 0xD) {
-                    if (filePointer < fileLength - 1)++line;
+                    if (filePointer < fileLength - 1) ++line;
                 }
 
                 if (line >= lines) break;
@@ -669,13 +760,14 @@ public class MainController {
             }
 
             return sb.reverse().toString();
-        } catch(final IOException e) {
+        } catch (final IOException e) {
             e.printStackTrace();
             return null;
         } finally {
             if (fileHandler != null) try {
                 fileHandler.close();
-            } catch(final IOException ignored) {}
+            } catch (final IOException ignored) {
+            }
         }
     }
 
@@ -683,9 +775,9 @@ public class MainController {
 
         final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(thisContext);
         final String useDistribution = prefs.getString("usedistribution", "core");
-        final String daemon = "liquid".equals(useDistribution) ? "/liquidv1/debug.log": "/debug.log";
+        final String daemon = "/debug.log";
 
-        final File f = new File(Utils.getDataDir(thisContext) + (Utils.isTestnet(thisContext) ? "/testnet3/debug.log": daemon));
+        final File f = new File(Utils.getDataDir(thisContext) + (Utils.isTestnet(thisContext) ? "/testnet3/debug.log" : daemon));
         if (!f.exists()) {
             Log.i(TAG, "No debug file exists yet");
             return;
@@ -701,7 +793,7 @@ public class MainController {
                     json.put("res", txt);
 
                     logsCallback.eventFired(json.toString());
-                } catch(Exception e2) {
+                } catch (Exception e2) {
                     logsCallback.eventFired("");
                 }
             }

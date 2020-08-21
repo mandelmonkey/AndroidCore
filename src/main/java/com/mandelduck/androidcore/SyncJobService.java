@@ -17,7 +17,6 @@ public class SyncJobService extends JobService {
         Log.i(TAG, "Sync Job started");
 
 
-
         Intent serviceIntent = new Intent(this, CoreService.class);
         serviceIntent.putExtra("startForeground", true);
         serviceIntent.putExtra("reindex", false);
@@ -28,7 +27,7 @@ public class SyncJobService extends JobService {
             Log.i(TAG, "start");
 
 
-           startForegroundService(serviceIntent);
+            startForegroundService(serviceIntent);
 
         } else {
             startService(serviceIntent);
@@ -36,7 +35,6 @@ public class SyncJobService extends JobService {
 
         return true;
     }
-
 
 
     @Override

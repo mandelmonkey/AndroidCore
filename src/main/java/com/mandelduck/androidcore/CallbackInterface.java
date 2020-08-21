@@ -6,5 +6,5 @@ package com.mandelduck.androidcore;
 public interface CallbackInterface {
 
     public void eventFired(String event);
-    
+
 }

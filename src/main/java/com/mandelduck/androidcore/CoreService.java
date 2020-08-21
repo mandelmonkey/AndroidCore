@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
@@ -50,7 +51,7 @@ public class CoreService extends Service {
 
 
     private void setupNotificationAndMoveToForeground() {
-
+        Log.i(TAG, "set up notification");
         final Intent broadcastIntent = new Intent();
         broadcastIntent.setAction(MainController.RPCResponseReceiver.ACTION_RESP);
         broadcastIntent.addCategory(Intent.CATEGORY_DEFAULT);
@@ -75,6 +76,7 @@ public class CoreService extends Service {
 
 
     public void startForegroundNotif() {
+        Log.i(TAG, "start forground notif");
         Context cont = getBaseContext();
 
 
@@ -106,8 +108,8 @@ public class CoreService extends Service {
             mChannel.setVibrationPattern(new long[]{100, 200, 300, 400, 500, 400, 300, 200, 400});
             nM.createNotificationChannel(mChannel);
             b.setChannelId("channel_00");
-        }else{
-            Log.i(TAG,"Background mode not supported");
+        } else {
+            Log.i(TAG, "Background mode not supported");
         }
 
 
@@ -120,11 +122,7 @@ public class CoreService extends Service {
     public int onStartCommand(final Intent intent, final int flags, final int startId) {
 
         Context cont = getBaseContext();
-        if (Utils.isDaemonInstalled(cont) == false) {
-            Log.i(TAG, "bitcoind not installed");
-            return START_STICKY;
-        }
-        Log.i(TAG, "started 2");
+
         if (mProcess != null) {
 
             Log.i(TAG, "mProcess is not null");
@@ -170,69 +168,66 @@ public class CoreService extends Service {
                 }
             };
 
-            final String daemon = "bitcoind";
-
-            List<String> array = null;
-
-
-            Bundle extras = intent.getExtras();
-            boolean reindex = false;
-            if (extras == null) {
-                Log.i("Service", "null");
-            } else {
-                Log.i("Service", "not null");
-                reindex = (boolean) extras.get("reindex");
-
-
-            }
-
-            array = Arrays.asList(String.format("%s/%s", path, daemon),
-                    "--server=1",
-                    String.format("--datadir=%s", Utils.getDataDir(cont)),
-                    String.format("--conf=%s", Utils.getBitcoinConf(cont)));
-            if (reindex) {
-
-                Log.i("Service", "starting with reindex");
-                array = Arrays.asList(String.format("%s/%s", path, daemon),
-                        "--server=1",
-                        "-reindex",
-                        String.format("--datadir=%s", Utils.getDataDir(cont)),
-                        String.format("--conf=%s", Utils.getBitcoinConf(cont)));
-            }
-
-
-            final ProcessBuilder pb = new ProcessBuilder(array);
-
-            pb.directory(new File(path));
-
-            mProcess = pb.start();
-
-            final ProcessLogger errorGobbler = new ProcessLogger(mProcess.getErrorStream(), er);
-            final ProcessLogger outputGobbler = new ProcessLogger(mProcess.getInputStream(), er);
-
-            errorGobbler.start();
-            outputGobbler.start();
-
 
             try {
 
+                String daemonName = "libbitcoind.so";
 
-                if (extras == null) {
-                    Log.i("Service", "extras are null");
-                } else {
-                    Log.i("Service", "extras are not null");
-                    boolean runInBackGround = (boolean) extras.get("startForeground");
-                    if (runInBackGround) {
-                        setupNotificationAndMoveToForeground();
-                    } else {
-                        Log.i(TAG, "dont run in background");
-                    }
 
+                String bpath = getBaseContext().getPackageManager().getApplicationInfo("com.nayutabox", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir + "/" + daemonName;
+
+
+                File f = new File(bpath);
+                if (!f.exists()) {
+                    bpath = getBaseContext().getPackageManager().getApplicationInfo("com.nayutabox", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir + "/bitcoind";
                 }
 
+                List<String> array = null;
+
+
+                Bundle extras = intent.getExtras();
+                boolean reindex = false;
+                if (extras == null) {
+                    Log.i("Service", "null");
+                } else {
+                    Log.i("Service", "not null");
+                    reindex = (boolean) extras.get("reindex");
+
+
+                }
+                Log.i("BITCOIND", bpath);
+                array = Arrays.asList(bpath/*String.format("%s/%s", path, daemon)*/,
+                        "--server=1",
+                        String.format("--datadir=%s", Utils.getDataDir(cont)),
+                        String.format("--conf=%s", Utils.getBitcoinConf(cont)));
+                if (reindex) {
+
+                    Log.i("Service", "starting with reindex");
+                    array.add("-reindex");
+                }
+
+
+                final ProcessBuilder pb = new ProcessBuilder(array);
+                Log.i(TAG, "starting bitcoind");
+                //pb.directory(new File(path));
+
+                mProcess = pb.start();
+
+                final ProcessLogger errorGobbler = new ProcessLogger(mProcess.getErrorStream(), er);
+                final ProcessLogger outputGobbler = new ProcessLogger(mProcess.getInputStream(), er);
+
+                errorGobbler.start();
+                outputGobbler.start();
+
+
+                startBackground(intent);
+
             } catch (Exception e) {
+                Log.e(TAG, "error " + e.getMessage());
+
                 e.printStackTrace();
-                Log.i(TAG, "app is not running so don't promote to foreground");
+                startBackground(intent);
+                stopAll();
             }
 
         } catch (final IOException e) {
@@ -250,13 +245,42 @@ public class CoreService extends Service {
         return START_STICKY;
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
+    void startBackground(Intent intent) {
+        try {
+
+            Bundle extras = intent.getExtras();
+
+            Log.i(TAG, "trying to start in forground");
+            if (extras == null) {
+                Log.i("Service", "extras are null");
+            } else {
+                Log.i("Service", "extras are not null");
+                boolean runInBackGround = (boolean) extras.get("startForeground");
+                if (runInBackGround) {
+                    setupNotificationAndMoveToForeground();
+                } else {
+                    Log.i(TAG, "dont run in background");
+                }
+
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.i(TAG, "app is not running so don't promote to foreground");
+        }
+    }
+
+    public void stopAll() {
+
+        this.stopSelf();
 
         final Intent i = new Intent(getBaseContext(), RPCIntentService.class);
         i.putExtra("CONSOLE_REQUEST", "stop");
-        MainController.thisContext.startService(i);
+        try {
+            MainController.thisContext.startService(i);
+        } catch (Exception e) {
+            Log.e(TAG, e.toString());
+        }
         if (timer != null) {
             timer.cancel();
         }
@@ -266,6 +290,14 @@ public class CoreService extends Service {
             mProcess.destroy();
             mProcess = null;
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+
+        stopAll();
 
     }
 }
