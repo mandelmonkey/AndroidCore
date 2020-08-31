@@ -174,12 +174,12 @@ public class CoreService extends Service {
                 String daemonName = "libbitcoind.so";
 
 
-                String bpath = getBaseContext().getPackageManager().getApplicationInfo("com.nayutabox", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir + "/" + daemonName;
+                String bpath = getBaseContext().getPackageManager().getApplicationInfo("com.nayuta.core", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir + "/" + daemonName;
 
 
                 File f = new File(bpath);
                 if (!f.exists()) {
-                    bpath = getBaseContext().getPackageManager().getApplicationInfo("com.nayutabox", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir + "/bitcoind";
+                    bpath = getBaseContext().getPackageManager().getApplicationInfo("com.nayuta.core", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir + "/bitcoind";
                 }
 
                 List<String> array = null;

@@ -343,7 +343,7 @@ public class MainController {
 
 
                 final String path = context.getNoBackupFilesDir().getAbsolutePath();
-                String nativeP = thisContext.getPackageManager().getApplicationInfo("com.nayutabox", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir;
+                String nativeP = thisContext.getPackageManager().getApplicationInfo("com.nayuta.core", PackageManager.GET_SHARED_LIBRARY_FILES).nativeLibraryDir;
                 LogFilesIn(nativeP);
 
                 String tpath = nativeP + "/" + daemonName;
@@ -569,6 +569,10 @@ public class MainController {
     }
 
     public static void cancelJob() {
+
+        if(handler != null){
+            handler.removeCallbacks(checkWifi);
+        }
         JobScheduler scheduler = (JobScheduler) thisContext.getSystemService(thisContext.JOB_SCHEDULER_SERVICE);
         scheduler.cancel(123);
         Log.i(TAG, "Job cancelled");
