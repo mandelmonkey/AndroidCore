@@ -575,7 +575,9 @@ public class MainController {
         }
         JobScheduler scheduler = (JobScheduler) thisContext.getSystemService(thisContext.JOB_SCHEDULER_SERVICE);
         scheduler.cancel(123);
+        scheduler.cancelAll();
         Log.i(TAG, "Job cancelled");
+
     }
 
     public static void registerBackgroundSync(boolean limited) {
